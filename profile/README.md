@@ -1,5 +1,5 @@
 <div align="center">
-	<img src="https://raw.githubusercontent.com/ianhubnet/.github/main/assets/logo.png" width="100" alt="Ianhub Logo" />
+	<img src="https://raw.githubusercontent.com/ianhubnet/.github/refs/heads/main/main/assets/logo.png" width="100" alt="Ianhub Logo" />
 	<h1>Ianhub™</h1>
 	<p><em>Building smarter PHP ecosystems for modern web applications.</em></p>
 	<a href="https://www.ianhub.net/" target="_blank">🌐 Website</a> •
