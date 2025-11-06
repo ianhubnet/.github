@@ -35,7 +35,7 @@ We maintain a family of repositories and internal tools that extend the CSK core
 - [**csk-app-default**](https://github.com/ianhubnet/csk-app-default) — Default application forked and used as boilerplate to build new ones.
 
 **Themes**
-- [**csk-theme-classic**](https://github.com/ianhubnet/csk-theme-classic) — A multipurpose CiSkeleton theme built with Bootstrap 5.
+- [**csk-theme-classic**](https://github.com/ianhubnet/csk-theme-classic) — A multipurpose CSK theme built with Bootstrap 5.
 
 **Modules**
 - [**csk-module-blog**](https://github.com/ianhubnet/csk-module-blog) — Adds a lightweight Content Management System to CSK applications.
