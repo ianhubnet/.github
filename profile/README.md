@@ -31,8 +31,10 @@ We maintain a family of repositories and internal tools that extend the CSK core
 
 **Core**
 - [**csk-core**](https://github.com/ianhubnet/csk-core) — Core application framework.
-- [**csk-common**](https://github.com/ianhubnet/csk-commo) — Shared assets (StyleSheets, JavaScripts, Images, and Fonts).
-- [**csk-app-default**](https://github.com/ianhubnet/csk-app-default) — Default application forked and used as boilerplate to build new ones.
+- [**csk-common**](https://github.com/ianhubnet/csk-common) — Shared assets (StyleSheets, JavaScripts, Images, and Fonts).
+- [**csk-languages**](https://github.com/ianhubnet/csk-languages) — Lists all available CSK languages.
+- [**csk-packages**](https://github.com/ianhubnet/csk-packages) — A monorepo containing all official CSK packages, including modules, plugins, themes, languages, helpers, and libraries.
+- [**csk-projects**](https://github.com/ianhubnet/csk-projects) — A monorepo containing all official CSK projects and applications.
 
 **Themes**
 - [**csk-theme-classic**](https://github.com/ianhubnet/csk-theme-classic) — A multipurpose CSK theme built with Bootstrap 5.
