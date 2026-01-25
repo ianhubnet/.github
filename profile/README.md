@@ -12,9 +12,9 @@
 
 We specialize in creating **lightweight, modular, and secure application frameworks** designed for developers who value **speed, structure, and flexibility**.
 
-### 🚀 CodeIgniter Skeleton (CSK)
+### 🚀 CiSkeleton (CSK)
 
-**CodeIgniter Skeleton (CSK)** is Ianhub’s flagship framework — a private, modular application foundation built on [CodeIgniter 3](https://github.com/bcit-ci/codeigniter). It serves as the core engine powering several internal and commercial projects.
+**CiSkeleton (CSK)** is Ianhub’s flagship framework — a private, modular application foundation built on [CodeIgniter 3](https://github.com/bcit-ci/codeigniter). It serves as the core engine powering several internal and commercial projects.
 
 🧩 **Core Highlights**
 - Modular architecture with built-in admin interface.
@@ -32,8 +32,7 @@ We maintain a family of repositories and internal tools that extend the CSK core
 **Core**
 - [**csk-core**](https://github.com/ianhubnet/csk-core) — Core application framework.
 - [**csk-common**](https://github.com/ianhubnet/csk-common) — Shared assets (StyleSheets, JavaScripts, Images, and Fonts).
-- [**csk-languages**](https://github.com/ianhubnet/csk-languages) — Lists all available CSK languages.
-- [**csk-packages**](https://github.com/ianhubnet/csk-packages) — A monorepo containing all official CSK packages, including modules, plugins, themes, languages, helpers, and libraries.
+- [**csk-packages**](https://github.com/ianhubnet/csk-packages) — A monorepo containing all official CSK packages, including modules, plugins, themes, languages, helpers, libraries, and services.
 - [**csk-projects**](https://github.com/ianhubnet/csk-projects) — A monorepo containing all official CSK projects and applications.
 
 **Themes**
@@ -58,6 +57,8 @@ We maintain a family of repositories and internal tools that extend the CSK core
 **Plugins**
 - [**csk-plugin-exception-notifier**](https://github.com/ianhubnet/csk-plugin-exception-notifier) — Automatically emails administrators detailed reports when uncaught PHP exceptions occur. Includes de-duplication and throttling to prevent alert spam.
 - [**csk-plugin-jwt**](https://github.com/ianhubnet/csk-plugin-jwt) — Provides secure token-based authentication for APIs and user sessions using the JWT standard.
+- [**csk-plugin-oauth**](https://github.com/ianhubnet/csk-plugin-oauth) — Enables third-party authentication using OAuth providers such as Google, Facebook, GitHub, Discord, and LinkedIn.
+- [**csk-plugin-oembed**](https://github.com/ianhubnet/csk-plugin-oembed) — Fetch and embed media content from external providers like YouTube, Vimeo, Dailymotion, SoundCloud, Flickr, Twitter, Tiktok, and Reddit using oEmbed protocol.
 - [**csk-plugin-request-guard**](https://github.com/ianhubnet/csk-plugin-request-guard) — Lightweight per-request limiter that prevents excessive bootstrapping or malicious request flooding during the <code>pre_controller</code> phase.
 - [**csk-plugin-visitors**](https://github.com/ianhubnet/csk-plugin-visitors) — Displays a live count of online visitors on the dashboard sidebar.
 
@@ -74,7 +75,7 @@ At Ianhub, every line of code follows three guiding principles:
 
 ### 🧠 About Kader Bouyakoub (bkader)
 
-Medic turned developer, [Kader Bouyakoub](https://github.com/bkader) is the creator of **CodeIgniter Skeleton** and several other frameworks, themes, modules, plugins, and libraries under the **Ianhub** brand. With almost twenty (**20**) years of coding experience, he did not let a single programming language go untasted and untested. He is also the creator of some **World of Warcraft** addons and the contributor to several others, either enhancing or back-porting them.
+Medic turned developer, [Kader Bouyakoub](https://github.com/bkader) is the creator of **CiSkeleton** and several other frameworks, themes, modules, plugins, and libraries under the **Ianhub** brand. With over twenty (**20**) years of coding experience, he did not let a single programming language go untasted and untested. He is also the creator of some **World of Warcraft** addons and the contributor to several others, either enhancing or back-porting them.
 
 > "I am specialized in anything as long as I can learn it."
 
