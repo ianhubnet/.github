@@ -43,30 +43,24 @@ jobs:
 
       - name: 4️⃣ Prepare ZIP contents
         run: |
-          mkdir -p "zip_build"
-          mkdir -p "zip_build/application"
-
-          rsync -av --delete application/ "zip_build/application/"
-
-          if [ -d public ]; then
-            rsync -av --delete public/ zip_build/public/
+          if [ ! -d "src" ]; then
+            echo "::error::src not found"
+            exit 1
           fi
 
-          [ -f LICENSE.md ] && cp LICENSE.md "zip_build/application/"
-          [ -f README.md ] && cp README.md "zip_build/application/"
+          mkdir "${{ steps.vars.outputs.name }}"
+
+          cp -r src/* "${{ steps.vars.outputs.name }}/"
+
+          for f in README.md LICENSE.md; do
+            if [ -f "$f" ]; then
+              cp "$f" "${{ steps.vars.outputs.name }}/"
+            fi
+          done
 
       - name: 5️⃣ Create ZIP archive
-        shell: bash
         run: |
-          cd zip_build
-
-          ZIP_ITEMS=("application")
-
-          if [ -d "public" ]; then
-            ZIP_ITEMS+=("public")
-          fi
-
-          zip -r "../${{ steps.vars.outputs.zip }}" "${ZIP_ITEMS[@]}"
+          zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.name }}"
 
       - name: 6️⃣ Create GitHub Release and Upload ZIP
         uses: softprops/action-gh-release@v2
