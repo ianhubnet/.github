@@ -1,0 +1,191 @@
+name: Mirror to Codeberg
+
+on:
+  workflow_call:
+    inputs:
+      private:
+        description: "Create missing Codeberg repository as private"
+        required: false
+        default: true
+        type: boolean
+
+      mirror_mode:
+        description: "Use 'mirror' to sync branches/tags with pruning, or 'branches-tags' to push branches/tags without pruning"
+        required: false
+        default: "mirror"
+        type: string
+
+      codeberg_url:
+        description: "Codeberg base URL"
+        required: false
+        default: "https://codeberg.org"
+        type: string
+
+      codeberg_owner:
+        description: "Target Codeberg user or organization. Defaults to GitHub owner."
+        required: false
+        default: ""
+        type: string
+
+    secrets:
+      CODEBERG_TOKEN:
+        required: true
+
+jobs:
+  mirror:
+    name: Create missing Codeberg repo and mirror
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout full repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive repository identity
+        id: repo
+        shell: bash
+        env:
+          CODEBERG_OWNER_INPUT: ${{ inputs.codeberg_owner }}
+        run: |
+          set -euo pipefail
+
+          GITHUB_OWNER="${GITHUB_REPOSITORY_OWNER}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          CODEBERG_OWNER="${CODEBERG_OWNER_INPUT:-$GITHUB_OWNER}"
+
+          echo "github_owner=${GITHUB_OWNER}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
+          echo "codeberg_owner=${CODEBERG_OWNER}" >> "$GITHUB_OUTPUT"
+
+          echo "GitHub source: ${GITHUB_OWNER}/${REPO}"
+          echo "Codeberg target: ${CODEBERG_OWNER}/${REPO}"
+
+      - name: Validate inputs
+        shell: bash
+        env:
+          MIRROR_MODE: ${{ inputs.mirror_mode }}
+        run: |
+          set -euo pipefail
+
+          case "$MIRROR_MODE" in
+            mirror|branches-tags)
+              ;;
+            *)
+              echo "Invalid mirror_mode: $MIRROR_MODE"
+              echo "Allowed values: mirror, branches-tags"
+              exit 1
+              ;;
+          esac
+
+      - name: Ensure Codeberg repository exists
+        shell: bash
+        env:
+          OWNER: ${{ steps.repo.outputs.codeberg_owner }}
+          REPO: ${{ steps.repo.outputs.repo }}
+          CODEBERG_URL: ${{ inputs.codeberg_url }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+          PRIVATE_REPO: ${{ inputs.private }}
+        run: |
+          set -euo pipefail
+
+          CODEBERG_URL="${CODEBERG_URL%/}"
+
+          echo "Checking Codeberg repository: ${OWNER}/${REPO}"
+
+          status="$(curl -sS -o /tmp/codeberg_repo.json -w "%{http_code}" \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            "${CODEBERG_URL}/api/v1/repos/${OWNER}/${REPO}")"
+
+          if [ "$status" = "200" ]; then
+            echo "Codeberg repository already exists: ${OWNER}/${REPO}"
+            exit 0
+          fi
+
+          if [ "$status" != "404" ]; then
+            echo "Unexpected Codeberg API response while checking repository: HTTP ${status}"
+            cat /tmp/codeberg_repo.json || true
+            exit 1
+          fi
+
+          echo "Creating Codeberg organization repository: ${OWNER}/${REPO}"
+
+          create_status="$(curl -sS -o /tmp/codeberg_create.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            "${CODEBERG_URL}/api/v1/orgs/${OWNER}/repos" \
+            -d "$(jq -n \
+              --arg name "$REPO" \
+              --argjson private "$PRIVATE_REPO" \
+              '{
+                name: $name,
+                private: $private,
+                auto_init: false,
+                default_branch: "main"
+              }')")"
+
+          if [ "$create_status" != "201" ]; then
+            echo "Failed to create Codeberg organization repository: HTTP ${create_status}"
+            cat /tmp/codeberg_create.json || true
+            exit 1
+          fi
+
+          echo "Verifying Codeberg repository exists after creation"
+
+          verify_status="$(curl -sS -o /tmp/codeberg_verify.json -w "%{http_code}" \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            "${CODEBERG_URL}/api/v1/repos/${OWNER}/${REPO}")"
+
+          if [ "$verify_status" != "200" ]; then
+            echo "Codeberg repository was not found at expected path: ${OWNER}/${REPO}"
+            cat /tmp/codeberg_verify.json || true
+            exit 1
+          fi
+
+          echo "Codeberg repository ready: ${OWNER}/${REPO}"
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add Codeberg remote
+        shell: bash
+        env:
+          CODEBERG_OWNER: ${{ steps.repo.outputs.codeberg_owner }}
+          REPO: ${{ steps.repo.outputs.repo }}
+          CODEBERG_URL: ${{ inputs.codeberg_url }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          CODEBERG_HOST="$(echo "${CODEBERG_URL}" | sed -E 's#^https?://##; s#/$##')"
+
+          git remote add codeberg "https://${CODEBERG_OWNER}:${CODEBERG_TOKEN}@${CODEBERG_HOST}/${CODEBERG_OWNER}/${REPO}.git"
+
+      - name: Mirror branches and tags to Codeberg
+        shell: bash
+        env:
+          MIRROR_MODE: ${{ inputs.mirror_mode }}
+        run: |
+          set -euo pipefail
+
+          if [ "$MIRROR_MODE" = "mirror" ]; then
+            git push --prune codeberg \
+              '+refs/heads/*:refs/heads/*' \
+              '+refs/tags/*:refs/tags/*'
+          else
+            git push codeberg '+refs/heads/*:refs/heads/*'
+            git push codeberg '+refs/tags/*:refs/tags/*'
+          fi
