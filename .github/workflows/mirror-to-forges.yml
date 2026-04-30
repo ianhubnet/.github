@@ -1,0 +1,269 @@
+name: Mirror to Codeberg and GitLab
+
+on:
+  workflow_call:
+    inputs:
+      private:
+        description: "Create missing repositories as private"
+        required: false
+        default: true
+        type: boolean
+
+      gitlab_visibility:
+        description: "GitLab visibility: private, public, or internal"
+        required: false
+        default: "private"
+        type: string
+
+      mirror_mode:
+        description: "Use 'mirror' for exact mirror, or 'branches-tags' for safer branch/tag push"
+        required: false
+        default: "mirror"
+        type: string
+
+      codeberg_url:
+        description: "Codeberg base URL"
+        required: false
+        default: "https://codeberg.org"
+        type: string
+
+      gitlab_url:
+        description: "GitLab base URL"
+        required: false
+        default: "https://gitlab.com"
+        type: string
+
+    secrets:
+      CODEBERG_TOKEN:
+        required: true
+      GITLAB_TOKEN:
+        required: true
+
+jobs:
+  mirror:
+    name: Create missing repos and mirror
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout full repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive repository identity
+        id: repo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          echo "owner=${OWNER}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
+
+          echo "Mirroring ${OWNER}/${REPO}"
+
+      - name: Validate inputs
+        shell: bash
+        env:
+          MIRROR_MODE: ${{ inputs.mirror_mode }}
+          GITLAB_VISIBILITY: ${{ inputs.gitlab_visibility }}
+        run: |
+          set -euo pipefail
+
+          case "$MIRROR_MODE" in
+            mirror|branches-tags)
+              ;;
+            *)
+              echo "Invalid mirror_mode: $MIRROR_MODE"
+              echo "Allowed values: mirror, branches-tags"
+              exit 1
+              ;;
+          esac
+
+          case "$GITLAB_VISIBILITY" in
+            private|public|internal)
+              ;;
+            *)
+              echo "Invalid gitlab_visibility: $GITLAB_VISIBILITY"
+              echo "Allowed values: private, public, internal"
+              exit 1
+              ;;
+          esac
+
+      - name: Ensure Codeberg repository exists
+        shell: bash
+        env:
+          OWNER: ${{ steps.repo.outputs.owner }}
+          REPO: ${{ steps.repo.outputs.repo }}
+          CODEBERG_URL: ${{ inputs.codeberg_url }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+          PRIVATE_REPO: ${{ inputs.private }}
+        run: |
+          set -euo pipefail
+
+          CODEBERG_URL="${CODEBERG_URL%/}"
+
+          status="$(curl -sS -o /tmp/codeberg_repo.json -w "%{http_code}" \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            "${CODEBERG_URL}/api/v1/repos/${OWNER}/${REPO}")"
+
+          if [ "$status" = "200" ]; then
+            echo "Codeberg repository already exists: ${OWNER}/${REPO}"
+            exit 0
+          fi
+
+          if [ "$status" != "404" ]; then
+            echo "Unexpected Codeberg API response while checking repository: HTTP ${status}"
+            cat /tmp/codeberg_repo.json || true
+            exit 1
+          fi
+
+          echo "Creating Codeberg repository: ${OWNER}/${REPO}"
+
+          create_status="$(curl -sS -o /tmp/codeberg_create.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            "${CODEBERG_URL}/api/v1/user/repos" \
+            -d "$(jq -n \
+              --arg name "$REPO" \
+              --argjson private "$PRIVATE_REPO" \
+              '{
+                name: $name,
+                private: $private,
+                auto_init: false,
+                default_branch: "main"
+              }')")"
+
+          if [ "$create_status" = "201" ] || [ "$create_status" = "409" ]; then
+            echo "Codeberg repository ready: ${OWNER}/${REPO}"
+            exit 0
+          fi
+
+          echo "Failed to create Codeberg repository: HTTP ${create_status}"
+          cat /tmp/codeberg_create.json || true
+          exit 1
+
+      - name: Ensure GitLab repository exists
+        shell: bash
+        env:
+          OWNER: ${{ steps.repo.outputs.owner }}
+          REPO: ${{ steps.repo.outputs.repo }}
+          GITLAB_URL: ${{ inputs.gitlab_url }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_VISIBILITY: ${{ inputs.gitlab_visibility }}
+        run: |
+          set -euo pipefail
+
+          GITLAB_URL="${GITLAB_URL%/}"
+
+          encoded_path="$(python3 - <<PY
+          from urllib.parse import quote
+          print(quote("${OWNER}/${REPO}", safe=""))
+          PY
+          )"
+
+          status="$(curl -sS -o /tmp/gitlab_repo.json -w "%{http_code}" \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Accept: application/json" \
+            "${GITLAB_URL}/api/v4/projects/${encoded_path}")"
+
+          if [ "$status" = "200" ]; then
+            echo "GitLab repository already exists: ${OWNER}/${REPO}"
+            exit 0
+          fi
+
+          if [ "$status" != "404" ]; then
+            echo "Unexpected GitLab API response while checking repository: HTTP ${status}"
+            cat /tmp/gitlab_repo.json || true
+            exit 1
+          fi
+
+          echo "Creating GitLab repository: ${OWNER}/${REPO}"
+
+          create_status="$(curl -sS -o /tmp/gitlab_create.json -w "%{http_code}" \
+            -X POST \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            "${GITLAB_URL}/api/v4/projects" \
+            -d "$(jq -n \
+              --arg name "$REPO" \
+              --arg path "$REPO" \
+              --arg visibility "$GITLAB_VISIBILITY" \
+              '{
+                name: $name,
+                path: $path,
+                visibility: $visibility,
+                initialize_with_readme: false
+              }')")"
+
+          if [ "$create_status" = "201" ] || [ "$create_status" = "409" ]; then
+            echo "GitLab repository ready: ${OWNER}/${REPO}"
+            exit 0
+          fi
+
+          echo "Failed to create GitLab repository: HTTP ${create_status}"
+          cat /tmp/gitlab_create.json || true
+          exit 1
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add mirror remotes
+        shell: bash
+        env:
+          OWNER: ${{ steps.repo.outputs.owner }}
+          REPO: ${{ steps.repo.outputs.repo }}
+          CODEBERG_URL: ${{ inputs.codeberg_url }}
+          GITLAB_URL: ${{ inputs.gitlab_url }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          CODEBERG_HOST="$(echo "${CODEBERG_URL}" | sed -E 's#^https?://##; s#/$##')"
+          GITLAB_HOST="$(echo "${GITLAB_URL}" | sed -E 's#^https?://##; s#/$##')"
+
+          git remote add codeberg "https://${OWNER}:${CODEBERG_TOKEN}@${CODEBERG_HOST}/${OWNER}/${REPO}.git"
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${OWNER}/${REPO}.git"
+
+      - name: Mirror to Codeberg
+        shell: bash
+        env:
+          MIRROR_MODE: ${{ inputs.mirror_mode }}
+        run: |
+          set -euo pipefail
+
+          if [ "$MIRROR_MODE" = "mirror" ]; then
+            git push --mirror codeberg
+          else
+            git push codeberg --all
+            git push codeberg --tags
+          fi
+
+      - name: Mirror to GitLab
+        shell: bash
+        env:
+          MIRROR_MODE: ${{ inputs.mirror_mode }}
+        run: |
+          set -euo pipefail
+
+          if [ "$MIRROR_MODE" = "mirror" ]; then
+            git push --mirror gitlab
+          else
+            git push gitlab --all
+            git push gitlab --tags
+          fi
