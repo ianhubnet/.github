@@ -208,7 +208,7 @@ jobs:
 
           echo "Checking GitLab repository: ${OWNER}/${REPO}"
 
-          status="$(curl -sS -o /tmp/gitlab_repo.json -w "%{http_code}" \
+          status="$(curl -sS -L -o /tmp/gitlab_repo.json -w "%{http_code}" \
             -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
             -H "Accept: application/json" \
             "${GITLAB_URL}/api/v4/projects/${encoded_project_path}")"
@@ -232,7 +232,7 @@ jobs:
 
           echo "Resolving GitLab namespace: ${OWNER}"
 
-          namespace_status="$(curl -sS -o /tmp/gitlab_namespace.json -w "%{http_code}" \
+          namespace_status="$(curl -sS -L -o /tmp/gitlab_namespace.json -w "%{http_code}" \
             -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
             -H "Accept: application/json" \
             "${GITLAB_URL}/api/v4/namespaces/${encoded_namespace}")"
@@ -253,7 +253,7 @@ jobs:
 
           echo "Creating GitLab repository: ${OWNER}/${REPO} in namespace ${namespace_id}"
 
-          create_status="$(curl -sS -o /tmp/gitlab_create.json -w "%{http_code}" \
+          create_status="$(curl -sS -L -o /tmp/gitlab_create.json -w "%{http_code}" \
             -X POST \
             -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
             -H "Accept: application/json" \
@@ -272,13 +272,28 @@ jobs:
                 initialize_with_readme: false
               }')")"
 
-          if [ "$create_status" != "201" ]; then
-            echo "Failed to create GitLab repository: HTTP ${create_status}"
-            cat /tmp/gitlab_create.json || true
-            exit 1
+          if [ "$create_status" = "201" ]; then
+            echo "GitLab repository created: ${OWNER}/${REPO}"
+            exit 0
           fi
 
-          echo "GitLab repository ready: ${OWNER}/${REPO}"
+          if [ "$create_status" = "400" ] || [ "$create_status" = "409" ]; then
+            echo "GitLab repository may already exist. Verifying..."
+
+            verify_status="$(curl -sS -L -o /tmp/gitlab_verify.json -w "%{http_code}" \
+              -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              -H "Accept: application/json" \
+              "${GITLAB_URL}/api/v4/projects/${encoded_project_path}")"
+
+            if [ "$verify_status" = "200" ]; then
+              echo "GitLab repository already exists after verification: ${OWNER}/${REPO}"
+              exit 0
+            fi
+          fi
+
+          echo "Failed to create GitLab repository: HTTP ${create_status}"
+          cat /tmp/gitlab_create.json || true
+          exit 1
 
       - name: Configure Git
         shell: bash
