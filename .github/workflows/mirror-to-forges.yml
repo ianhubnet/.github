@@ -16,7 +16,7 @@ on:
         type: string
 
       mirror_mode:
-        description: "Use 'mirror' for exact mirror, or 'branches-tags' for safer branch/tag push"
+        description: "Use 'mirror' to sync branches/tags with pruning, or 'branches-tags' to push branches/tags without pruning"
         required: false
         default: "mirror"
         type: string
@@ -307,7 +307,7 @@ jobs:
           git remote add codeberg "https://${CODEBERG_OWNER}:${CODEBERG_TOKEN}@${CODEBERG_HOST}/${CODEBERG_OWNER}/${REPO}.git"
           git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_NAMESPACE}/${REPO}.git"
 
-      - name: Mirror to Codeberg
+      - name: Mirror branches and tags to Codeberg
         shell: bash
         env:
           MIRROR_MODE: ${{ inputs.mirror_mode }}
@@ -315,13 +315,15 @@ jobs:
           set -euo pipefail
 
           if [ "$MIRROR_MODE" = "mirror" ]; then
-            git push --mirror codeberg
+            git push --prune codeberg \
+              '+refs/heads/*:refs/heads/*' \
+              '+refs/tags/*:refs/tags/*'
           else
-            git push codeberg --all
-            git push codeberg --tags
+            git push codeberg '+refs/heads/*:refs/heads/*'
+            git push codeberg '+refs/tags/*:refs/tags/*'
           fi
 
-      - name: Mirror to GitLab
+      - name: Mirror branches and tags to GitLab
         shell: bash
         env:
           MIRROR_MODE: ${{ inputs.mirror_mode }}
@@ -329,8 +331,10 @@ jobs:
           set -euo pipefail
 
           if [ "$MIRROR_MODE" = "mirror" ]; then
-            git push --mirror gitlab
+            git push --prune gitlab \
+              '+refs/heads/*:refs/heads/*' \
+              '+refs/tags/*:refs/tags/*'
           else
-            git push gitlab --all
-            git push gitlab --tags
+            git push gitlab '+refs/heads/*:refs/heads/*'
+            git push gitlab '+refs/tags/*:refs/tags/*'
           fi
