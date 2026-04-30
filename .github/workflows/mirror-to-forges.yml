@@ -33,6 +33,18 @@ on:
         default: "https://gitlab.com"
         type: string
 
+      codeberg_owner:
+        description: "Target Codeberg user or organization. Defaults to GitHub owner."
+        required: false
+        default: ""
+        type: string
+
+      gitlab_namespace:
+        description: "Target GitLab user or group path. Defaults to GitHub owner."
+        required: false
+        default: ""
+        type: string
+
     secrets:
       CODEBERG_TOKEN:
         required: true
@@ -56,16 +68,26 @@ jobs:
       - name: Derive repository identity
         id: repo
         shell: bash
+        env:
+          CODEBERG_OWNER_INPUT: ${{ inputs.codeberg_owner }}
+          GITLAB_NAMESPACE_INPUT: ${{ inputs.gitlab_namespace }}
         run: |
           set -euo pipefail
 
-          OWNER="${GITHUB_REPOSITORY_OWNER}"
+          GITHUB_OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
 
-          echo "owner=${OWNER}" >> "$GITHUB_OUTPUT"
-          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
+          CODEBERG_OWNER="${CODEBERG_OWNER_INPUT:-$GITHUB_OWNER}"
+          GITLAB_NAMESPACE="${GITLAB_NAMESPACE_INPUT:-$GITHUB_OWNER}"
 
-          echo "Mirroring ${OWNER}/${REPO}"
+          echo "github_owner=${GITHUB_OWNER}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
+          echo "codeberg_owner=${CODEBERG_OWNER}" >> "$GITHUB_OUTPUT"
+          echo "gitlab_namespace=${GITLAB_NAMESPACE}" >> "$GITHUB_OUTPUT"
+
+          echo "GitHub source: ${GITHUB_OWNER}/${REPO}"
+          echo "Codeberg target: ${CODEBERG_OWNER}/${REPO}"
+          echo "GitLab target: ${GITLAB_NAMESPACE}/${REPO}"
 
       - name: Validate inputs
         shell: bash
@@ -98,7 +120,7 @@ jobs:
       - name: Ensure Codeberg repository exists
         shell: bash
         env:
-          OWNER: ${{ steps.repo.outputs.owner }}
+          OWNER: ${{ steps.repo.outputs.codeberg_owner }}
           REPO: ${{ steps.repo.outputs.repo }}
           CODEBERG_URL: ${{ inputs.codeberg_url }}
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
@@ -107,6 +129,8 @@ jobs:
           set -euo pipefail
 
           CODEBERG_URL="${CODEBERG_URL%/}"
+
+          echo "Checking Codeberg repository: ${OWNER}/${REPO}"
 
           status="$(curl -sS -o /tmp/codeberg_repo.json -w "%{http_code}" \
             -H "Authorization: token ${CODEBERG_TOKEN}" \
@@ -124,14 +148,14 @@ jobs:
             exit 1
           fi
 
-          echo "Creating Codeberg repository: ${OWNER}/${REPO}"
+          echo "Creating Codeberg organization repository: ${OWNER}/${REPO}"
 
           create_status="$(curl -sS -o /tmp/codeberg_create.json -w "%{http_code}" \
             -X POST \
             -H "Authorization: token ${CODEBERG_TOKEN}" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
-            "${CODEBERG_URL}/api/v1/user/repos" \
+            "${CODEBERG_URL}/api/v1/orgs/${OWNER}/repos" \
             -d "$(jq -n \
               --arg name "$REPO" \
               --argjson private "$PRIVATE_REPO" \
@@ -142,19 +166,31 @@ jobs:
                 default_branch: "main"
               }')")"
 
-          if [ "$create_status" = "201" ] || [ "$create_status" = "409" ]; then
-            echo "Codeberg repository ready: ${OWNER}/${REPO}"
-            exit 0
+          if [ "$create_status" != "201" ]; then
+            echo "Failed to create Codeberg organization repository: HTTP ${create_status}"
+            cat /tmp/codeberg_create.json || true
+            exit 1
           fi
 
-          echo "Failed to create Codeberg repository: HTTP ${create_status}"
-          cat /tmp/codeberg_create.json || true
-          exit 1
+          echo "Verifying Codeberg repository exists after creation"
+
+          verify_status="$(curl -sS -o /tmp/codeberg_verify.json -w "%{http_code}" \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -H "Accept: application/json" \
+            "${CODEBERG_URL}/api/v1/repos/${OWNER}/${REPO}")"
+
+          if [ "$verify_status" != "200" ]; then
+            echo "Codeberg repository was not found at expected path: ${OWNER}/${REPO}"
+            cat /tmp/codeberg_verify.json || true
+            exit 1
+          fi
+
+          echo "Codeberg repository ready: ${OWNER}/${REPO}"
 
       - name: Ensure GitLab repository exists
         shell: bash
         env:
-          OWNER: ${{ steps.repo.outputs.owner }}
+          OWNER: ${{ steps.repo.outputs.gitlab_namespace }}
           REPO: ${{ steps.repo.outputs.repo }}
           GITLAB_URL: ${{ inputs.gitlab_url }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
@@ -164,16 +200,18 @@ jobs:
 
           GITLAB_URL="${GITLAB_URL%/}"
 
-          encoded_path="$(python3 - <<PY
+          encoded_project_path="$(python3 - <<PY
           from urllib.parse import quote
           print(quote("${OWNER}/${REPO}", safe=""))
           PY
           )"
 
+          echo "Checking GitLab repository: ${OWNER}/${REPO}"
+
           status="$(curl -sS -o /tmp/gitlab_repo.json -w "%{http_code}" \
             -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
             -H "Accept: application/json" \
-            "${GITLAB_URL}/api/v4/projects/${encoded_path}")"
+            "${GITLAB_URL}/api/v4/projects/${encoded_project_path}")"
 
           if [ "$status" = "200" ]; then
             echo "GitLab repository already exists: ${OWNER}/${REPO}"
@@ -186,7 +224,34 @@ jobs:
             exit 1
           fi
 
-          echo "Creating GitLab repository: ${OWNER}/${REPO}"
+          encoded_namespace="$(python3 - <<PY
+          from urllib.parse import quote
+          print(quote("${OWNER}", safe=""))
+          PY
+          )"
+
+          echo "Resolving GitLab namespace: ${OWNER}"
+
+          namespace_status="$(curl -sS -o /tmp/gitlab_namespace.json -w "%{http_code}" \
+            -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            -H "Accept: application/json" \
+            "${GITLAB_URL}/api/v4/namespaces/${encoded_namespace}")"
+
+          if [ "$namespace_status" != "200" ]; then
+            echo "Failed to resolve GitLab namespace '${OWNER}': HTTP ${namespace_status}"
+            cat /tmp/gitlab_namespace.json || true
+            exit 1
+          fi
+
+          namespace_id="$(jq -r '.id' /tmp/gitlab_namespace.json)"
+
+          if [ -z "$namespace_id" ] || [ "$namespace_id" = "null" ]; then
+            echo "Could not read GitLab namespace id for '${OWNER}'"
+            cat /tmp/gitlab_namespace.json || true
+            exit 1
+          fi
+
+          echo "Creating GitLab repository: ${OWNER}/${REPO} in namespace ${namespace_id}"
 
           create_status="$(curl -sS -o /tmp/gitlab_create.json -w "%{http_code}" \
             -X POST \
@@ -198,21 +263,22 @@ jobs:
               --arg name "$REPO" \
               --arg path "$REPO" \
               --arg visibility "$GITLAB_VISIBILITY" \
+              --argjson namespace_id "$namespace_id" \
               '{
                 name: $name,
                 path: $path,
                 visibility: $visibility,
+                namespace_id: $namespace_id,
                 initialize_with_readme: false
               }')")"
 
-          if [ "$create_status" = "201" ] || [ "$create_status" = "409" ]; then
-            echo "GitLab repository ready: ${OWNER}/${REPO}"
-            exit 0
+          if [ "$create_status" != "201" ]; then
+            echo "Failed to create GitLab repository: HTTP ${create_status}"
+            cat /tmp/gitlab_create.json || true
+            exit 1
           fi
 
-          echo "Failed to create GitLab repository: HTTP ${create_status}"
-          cat /tmp/gitlab_create.json || true
-          exit 1
+          echo "GitLab repository ready: ${OWNER}/${REPO}"
 
       - name: Configure Git
         shell: bash
@@ -225,7 +291,8 @@ jobs:
       - name: Add mirror remotes
         shell: bash
         env:
-          OWNER: ${{ steps.repo.outputs.owner }}
+          CODEBERG_OWNER: ${{ steps.repo.outputs.codeberg_owner }}
+          GITLAB_NAMESPACE: ${{ steps.repo.outputs.gitlab_namespace }}
           REPO: ${{ steps.repo.outputs.repo }}
           CODEBERG_URL: ${{ inputs.codeberg_url }}
           GITLAB_URL: ${{ inputs.gitlab_url }}
@@ -237,8 +304,8 @@ jobs:
           CODEBERG_HOST="$(echo "${CODEBERG_URL}" | sed -E 's#^https?://##; s#/$##')"
           GITLAB_HOST="$(echo "${GITLAB_URL}" | sed -E 's#^https?://##; s#/$##')"
 
-          git remote add codeberg "https://${OWNER}:${CODEBERG_TOKEN}@${CODEBERG_HOST}/${OWNER}/${REPO}.git"
-          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${OWNER}/${REPO}.git"
+          git remote add codeberg "https://${CODEBERG_OWNER}:${CODEBERG_TOKEN}@${CODEBERG_HOST}/${CODEBERG_OWNER}/${REPO}.git"
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_NAMESPACE}/${REPO}.git"
 
       - name: Mirror to Codeberg
         shell: bash
