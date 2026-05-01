@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: 1️⃣ Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -78,7 +78,7 @@ jobs:
           zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.name }}"
 
       - name: 6️⃣ Create GitHub Release and Upload ZIP
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           files: ${{ steps.vars.outputs.zip }}
@@ -94,7 +94,7 @@ jobs:
 
     steps:
       - name: Trigger update
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.token }}
           repository: ianhubnet/csk-packages
