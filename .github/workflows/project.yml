@@ -1,4 +1,5 @@
 name: Release and Dispatch
+run-name: Release ${{ github.ref_name }} by @${{ github.actor }}
 
 on:
   workflow_call:
@@ -7,15 +8,18 @@ on:
         required: true
         type: string
     secrets:
-      token:
+      IANHUB_AGENT_APP_ID:
+        required: true
+      IANHUB_AGENT_PRIVATE_KEY:
         required: true
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   release:
-    name: Package and Release
+    name: Project Release
     runs-on: ubuntu-latest
 
     concurrency:
@@ -28,14 +32,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 2️⃣ Configure GitHub auth and identity
+      - name: 2️⃣ Create ianhub-agent token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.IANHUB_AGENT_APP_ID }}
+          private-key: ${{ secrets.IANHUB_AGENT_PRIVATE_KEY }}
+          owner: ianhubnet
+
+      - name: 3️⃣ Configure GitHub auth and identity
         shell: bash
         run: |
-          git config --global url."https://${{ secrets.CSK_PAT }}@github.com/".insteadOf "https://github.com/"
-          git config user.name "ianhub-bot"
-          git config user.email "bot@ianhub.net"
+          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          git config --global user.name "ianhub-agent[bot]"
+          git config --global user.email "ianhub-agent[bot]@users.noreply.github.com"
 
-      - name: 3️⃣ Set up variables
+      - name: 4️⃣ Set up variables
         id: vars
         run: |
           TAG_NAME=${GITHUB_REF#refs/tags/}
@@ -45,7 +57,7 @@ jobs:
           echo "name=$NAME" >> $GITHUB_OUTPUT
           echo "zip=$ZIP_NAME" >> $GITHUB_OUTPUT
 
-      - name: 4️⃣ Prepare ZIP contents
+      - name: 5️⃣ Prepare ZIP contents
         run: |
           if [ ! -d "src" ]; then
             echo "::error::src not found"
@@ -53,7 +65,6 @@ jobs:
           fi
 
           mkdir "${{ steps.vars.outputs.name }}"
-
           cp -r src/* "${{ steps.vars.outputs.name }}/"
 
           for f in README.md LICENSE.md; do
@@ -62,15 +73,17 @@ jobs:
             fi
           done
 
-      - name: 5️⃣ Create ZIP archive
+      - name: 6️⃣ Create ZIP archive
         run: |
           zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.name }}"
 
-      - name: 6️⃣ Create GitHub Release and Upload ZIP
+      - name: 7️⃣ Create GitHub Release and Upload ZIP
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           files: ${{ steps.vars.outputs.zip }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
   dispatch:
     name: Notify Projects
@@ -82,10 +95,18 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      - name: Create ianhub-agent token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.IANHUB_AGENT_APP_ID }}
+          private-key: ${{ secrets.IANHUB_AGENT_PRIVATE_KEY }}
+          owner: ianhubnet
+
       - name: Trigger update
         uses: peter-evans/repository-dispatch@v4
         with:
-          token: ${{ secrets.token }}
+          token: ${{ steps.app-token.outputs.token }}
           repository: ianhubnet/csk-projects
           event-type: update-submodules
           client-payload: |
