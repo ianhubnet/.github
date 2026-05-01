@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout full repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -156,13 +156,13 @@ jobs:
 
           echo "Codeberg repository ready: ${OWNER}/${REPO}"
 
-      - name: Configure Git
+      - name: Configure Git identity
         shell: bash
         run: |
           set -euo pipefail
 
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "ianhub-agent[bot]"
+          git config --global user.email "ianhub-agent[bot]@users.noreply.github.com"
 
       - name: Add Codeberg remote
         shell: bash
