@@ -33,8 +33,12 @@ on:
 
 jobs:
   mirror:
-    name: Create missing Codeberg repo and mirror
+    name: Mirror latest Git state to Codeberg
     runs-on: ubuntu-latest
+
+    concurrency:
+      group: codeberg-mirror-${{ github.repository }}
+      cancel-in-progress: true
 
     permissions:
       contents: read
