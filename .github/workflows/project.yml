@@ -18,6 +18,10 @@ jobs:
     name: Package and Release
     runs-on: ubuntu-latest
 
+    concurrency:
+      group: release-${{ github.workflow }}-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: true
+
     steps:
       - name: 1️⃣ Checkout code
         uses: actions/checkout@v4
@@ -72,6 +76,10 @@ jobs:
     name: Notify Projects
     runs-on: ubuntu-latest
     needs: release
+
+    concurrency:
+      group: dispatch-${{ github.workflow }}-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Trigger update
