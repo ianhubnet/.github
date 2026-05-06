@@ -229,12 +229,12 @@ jobs:
             remote_dir="$(dirname "$remote_file")"
 
             lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-set ftp:ssl-allow true
-set ssl:verify-certificate no
-mkdir -p "$remote_dir"
-put "$local_file" -o "$remote_file"
-bye
-EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          mkdir -p "$remote_dir"
+          put "$local_file" -o "$remote_file"
+          bye
+          EOF
           done < changed-app-files.txt
 
       - name: Upload changed public files
