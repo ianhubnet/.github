@@ -228,13 +228,13 @@ jobs:
             remote_file="$FTP_PATH/$file"
             remote_dir="$(dirname "$remote_file")"
 
-            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          mkdir -p "$remote_dir"
-          put "$local_file" -o "$remote_file"
-          bye
-          EOF
+            echo "Uploading app file: $file"
+
+            lftp \
+              -u "$FTP_USER","$FTP_PASS" \
+              -p "$PORT" \
+              "$FTP_HOST" \
+              -e "set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:fail-exit no; mkdir -p \"$remote_dir\"; set cmd:fail-exit yes; put \"$local_file\" -o \"$remote_file\"; bye"
           done < changed-app-files.txt
 
       - name: Upload changed public files
@@ -266,13 +266,13 @@ jobs:
             remote_file="$FTP_PATH_PUBLIC/$file"
             remote_dir="$(dirname "$remote_file")"
 
-            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          mkdir -p "$remote_dir"
-          put "$local_file" -o "$remote_file"
-          bye
-          EOF
+            echo "Uploading public file: $file"
+
+            lftp \
+              -u "$FTP_USER","$FTP_PASS" \
+              -p "$PORT" \
+              "$FTP_HOST" \
+              -e "set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:fail-exit no; mkdir -p \"$remote_dir\"; set cmd:fail-exit yes; put \"$local_file\" -o \"$remote_file\"; bye"
           done < changed-public-files.txt
 
       - name: Delete removed app files
@@ -301,12 +301,13 @@ jobs:
 
             remote_file="$FTP_PATH/$file"
 
-            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          rm -f "$remote_file"
-          bye
-          EOF
+            echo "Deleting app file: $file"
+
+            lftp \
+              -u "$FTP_USER","$FTP_PASS" \
+              -p "$PORT" \
+              "$FTP_HOST" \
+              -e "set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:fail-exit no; rm -f \"$remote_file\"; bye"
           done < deleted-app-files.txt
 
       - name: Delete removed public files
@@ -335,10 +336,11 @@ jobs:
 
             remote_file="$FTP_PATH_PUBLIC/$file"
 
-            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          rm -f "$remote_file"
-          bye
-          EOF
+            echo "Deleting public file: $file"
+
+            lftp \
+              -u "$FTP_USER","$FTP_PASS" \
+              -p "$PORT" \
+              "$FTP_HOST" \
+              -e "set ftp:ssl-allow true; set ssl:verify-certificate no; set cmd:fail-exit no; rm -f \"$remote_file\"; bye"
           done < deleted-public-files.txt
