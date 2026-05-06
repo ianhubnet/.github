@@ -1,0 +1,290 @@
+name: Deploy App
+
+on:
+  workflow_call:
+    inputs:
+      type:
+        required: true
+        type: string
+
+      app_path:
+        required: false
+        type: string
+        default: src
+
+      deploy_public:
+        required: false
+        type: boolean
+        default: true
+
+      delete_removed:
+        required: false
+        type: boolean
+        default: true
+
+      full_deploy:
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      FTP_HOST:
+        required: true
+      FTP_PORT:
+        required: false
+      FTP_USER:
+        required: true
+      FTP_PASS:
+        required: true
+      FTP_PATH:
+        required: true
+      FTP_PATH_PUBLIC:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy App
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate deployment
+        shell: bash
+        run: |
+          if [ "${{ inputs.type }}" != "app" ]; then
+            echo "::error::Only CSK apps can use this deployment workflow. Received: ${{ inputs.type }}"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.FTP_HOST }}" ]; then
+            echo "::error::Missing FTP_HOST."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.FTP_USER }}" ]; then
+            echo "::error::Missing FTP_USER."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.FTP_PASS }}" ]; then
+            echo "::error::Missing FTP_PASS."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.FTP_PATH }}" ]; then
+            echo "::error::Missing FTP_PATH."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.FTP_PATH_PUBLIC }}" ]; then
+            echo "::error::Missing FTP_PATH_PUBLIC."
+            exit 1
+          fi
+
+          echo "Deployment validated."
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Validate app structure
+        shell: bash
+        run: |
+          APP_PATH="${{ inputs.app_path }}"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::App path not found: $APP_PATH"
+            exit 1
+          fi
+
+          if [ ! -d "$APP_PATH/public" ]; then
+            echo "::error::App public directory not found: $APP_PATH/public"
+            exit 1
+          fi
+
+      - name: Prepare changed and deleted files
+        shell: bash
+        run: |
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          APP_PATH="${{ inputs.app_path }}"
+
+          : > changed-app-files.txt
+          : > changed-public-files.txt
+          : > deleted-app-files.txt
+          : > deleted-public-files.txt
+
+          if [ "${{ inputs.full_deploy }}" = "true" ]; then
+            git ls-files "$APP_PATH" > changed-files.txt
+            : > deleted-files.txt
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            git ls-files "$APP_PATH" > changed-files.txt
+            : > deleted-files.txt
+          else
+            git diff --name-only --diff-filter=ACMRT "$BEFORE" "$AFTER" -- "$APP_PATH" > changed-files.txt
+            git diff --name-only --diff-filter=D "$BEFORE" "$AFTER" -- "$APP_PATH" > deleted-files.txt
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            case "$file" in
+              "$APP_PATH/public/"*)
+                echo "${file#"$APP_PATH/public/"}" >> changed-public-files.txt
+                ;;
+              "$APP_PATH/"*)
+                echo "${file#"$APP_PATH/"}" >> changed-app-files.txt
+                ;;
+            esac
+          done < changed-files.txt
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            case "$file" in
+              "$APP_PATH/public/"*)
+                echo "${file#"$APP_PATH/public/"}" >> deleted-public-files.txt
+                ;;
+              "$APP_PATH/"*)
+                echo "${file#"$APP_PATH/"}" >> deleted-app-files.txt
+                ;;
+            esac
+          done < deleted-files.txt
+
+          echo "Changed app files:"
+          cat changed-app-files.txt || true
+
+          echo "Changed public files:"
+          cat changed-public-files.txt || true
+
+          echo "Deleted app files:"
+          cat deleted-app-files.txt || true
+
+          echo "Deleted public files:"
+          cat deleted-public-files.txt || true
+
+      - name: Install FTP client
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Upload changed app files
+        shell: bash
+        run: |
+          PORT="${{ secrets.FTP_PORT }}"
+          if [ -z "$PORT" ]; then
+            PORT="21"
+          fi
+
+          if [ ! -s changed-app-files.txt ]; then
+            echo "No app files changed."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            local_file="${{ inputs.app_path }}/$file"
+            remote_file="${{ secrets.FTP_PATH }}/$file"
+            remote_dir="$(dirname "$remote_file")"
+
+            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          mkdir -p "$remote_dir"
+          put "$local_file" -o "$remote_file"
+          bye
+          EOF
+          done < changed-app-files.txt
+
+      - name: Upload changed public files
+        if: ${{ inputs.deploy_public }}
+        shell: bash
+        run: |
+          PORT="${{ secrets.FTP_PORT }}"
+          if [ -z "$PORT" ]; then
+            PORT="21"
+          fi
+
+          if [ ! -s changed-public-files.txt ]; then
+            echo "No public files changed."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            local_file="${{ inputs.app_path }}/public/$file"
+            remote_file="${{ secrets.FTP_PATH_PUBLIC }}/$file"
+            remote_dir="$(dirname "$remote_file")"
+
+            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          mkdir -p "$remote_dir"
+          put "$local_file" -o "$remote_file"
+          bye
+          EOF
+          done < changed-public-files.txt
+
+      - name: Delete removed app files
+        if: ${{ inputs.delete_removed }}
+        shell: bash
+        run: |
+          PORT="${{ secrets.FTP_PORT }}"
+          if [ -z "$PORT" ]; then
+            PORT="21"
+          fi
+
+          if [ ! -s deleted-app-files.txt ]; then
+            echo "No app files deleted."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            remote_file="${{ secrets.FTP_PATH }}/$file"
+
+            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          rm -f "$remote_file"
+          bye
+          EOF
+          done < deleted-app-files.txt
+
+      - name: Delete removed public files
+        if: ${{ inputs.delete_removed && inputs.deploy_public }}
+        shell: bash
+        run: |
+          PORT="${{ secrets.FTP_PORT }}"
+          if [ -z "$PORT" ]; then
+            PORT="21"
+          fi
+
+          if [ ! -s deleted-public-files.txt ]; then
+            echo "No public files deleted."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            remote_file="${{ secrets.FTP_PATH_PUBLIC }}/$file"
+
+            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          rm -f "$remote_file"
+          bye
+          EOF
+          done < deleted-public-files.txt
