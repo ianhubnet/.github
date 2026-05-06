@@ -1,4 +1,4 @@
-name: Deploy App
+name: Deploy Project
 
 on:
   workflow_call:
@@ -56,33 +56,40 @@ jobs:
     steps:
       - name: Validate deployment
         shell: bash
+        env:
+          CSK_TYPE: ${{ inputs.type }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PATH: ${{ secrets.FTP_PATH }}
+          FTP_PATH_PUBLIC: ${{ secrets.FTP_PATH_PUBLIC }}
         run: |
-          if [ "${{ inputs.type }}" != "app" ]; then
-            echo "::error::Only CSK apps can use this deployment workflow. Received: ${{ inputs.type }}"
+          if [ "$CSK_TYPE" != "app" ]; then
+            echo "::error::Only CSK apps can use this deployment workflow. Received: $CSK_TYPE"
             exit 1
           fi
 
-          if [ -z "${{ secrets.FTP_HOST }}" ]; then
+          if [ -z "$FTP_HOST" ]; then
             echo "::error::Missing FTP_HOST."
             exit 1
           fi
 
-          if [ -z "${{ secrets.FTP_USER }}" ]; then
+          if [ -z "$FTP_USER" ]; then
             echo "::error::Missing FTP_USER."
             exit 1
           fi
 
-          if [ -z "${{ secrets.FTP_PASS }}" ]; then
+          if [ -z "$FTP_PASS" ]; then
             echo "::error::Missing FTP_PASS."
             exit 1
           fi
 
-          if [ -z "${{ secrets.FTP_PATH }}" ]; then
+          if [ -z "$FTP_PATH" ]; then
             echo "::error::Missing FTP_PATH."
             exit 1
           fi
 
-          if [ -z "${{ secrets.FTP_PATH_PUBLIC }}" ]; then
+          if [ -z "$FTP_PATH_PUBLIC" ]; then
             echo "::error::Missing FTP_PATH_PUBLIC."
             exit 1
           fi
@@ -94,10 +101,21 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Validate app structure
+      - name: Configure GitHub auth and identity
         shell: bash
         run: |
-          APP_PATH="${{ inputs.app_path }}"
+          git config --global user.name "ianhub-agent[bot]"
+          git config --global user.email "ianhub-agent[bot]@users.noreply.github.com"
+
+      - name: Validate app structure
+        shell: bash
+        env:
+          APP_PATH: ${{ inputs.app_path }}
+        run: |
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Missing app path."
+            exit 1
+          fi
 
           if [ ! -d "$APP_PATH" ]; then
             echo "::error::App path not found: $APP_PATH"
@@ -109,22 +127,28 @@ jobs:
             exit 1
           fi
 
+          echo "App structure validated."
+
       - name: Prepare changed and deleted files
         shell: bash
+        env:
+          APP_PATH: ${{ inputs.app_path }}
+          FULL_DEPLOY: ${{ inputs.full_deploy }}
         run: |
           BEFORE="${{ github.event.before }}"
           AFTER="${{ github.sha }}"
-          APP_PATH="${{ inputs.app_path }}"
 
           : > changed-app-files.txt
           : > changed-public-files.txt
           : > deleted-app-files.txt
           : > deleted-public-files.txt
 
-          if [ "${{ inputs.full_deploy }}" = "true" ]; then
+          if [ "$FULL_DEPLOY" = "true" ]; then
+            echo "Full deploy requested."
             git ls-files "$APP_PATH" > changed-files.txt
             : > deleted-files.txt
           elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "Initial branch push detected. Deploying all app files."
             git ls-files "$APP_PATH" > changed-files.txt
             : > deleted-files.txt
           else
@@ -178,8 +202,16 @@ jobs:
 
       - name: Upload changed app files
         shell: bash
+        env:
+          APP_PATH: ${{ inputs.app_path }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
-          PORT="${{ secrets.FTP_PORT }}"
+          PORT="$FTP_PORT"
+
           if [ -z "$PORT" ]; then
             PORT="21"
           fi
@@ -192,24 +224,32 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            local_file="${{ inputs.app_path }}/$file"
-            remote_file="${{ secrets.FTP_PATH }}/$file"
+            local_file="$APP_PATH/$file"
+            remote_file="$FTP_PATH/$file"
             remote_dir="$(dirname "$remote_file")"
 
-            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          mkdir -p "$remote_dir"
-          put "$local_file" -o "$remote_file"
-          bye
-          EOF
+            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
+set ftp:ssl-allow true
+set ssl:verify-certificate no
+mkdir -p "$remote_dir"
+put "$local_file" -o "$remote_file"
+bye
+EOF
           done < changed-app-files.txt
 
       - name: Upload changed public files
         if: ${{ inputs.deploy_public }}
         shell: bash
+        env:
+          APP_PATH: ${{ inputs.app_path }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PATH_PUBLIC: ${{ secrets.FTP_PATH_PUBLIC }}
         run: |
-          PORT="${{ secrets.FTP_PORT }}"
+          PORT="$FTP_PORT"
+
           if [ -z "$PORT" ]; then
             PORT="21"
           fi
@@ -222,24 +262,31 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            local_file="${{ inputs.app_path }}/public/$file"
-            remote_file="${{ secrets.FTP_PATH_PUBLIC }}/$file"
+            local_file="$APP_PATH/public/$file"
+            remote_file="$FTP_PATH_PUBLIC/$file"
             remote_dir="$(dirname "$remote_file")"
 
-            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          mkdir -p "$remote_dir"
-          put "$local_file" -o "$remote_file"
-          bye
-          EOF
+            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
+set ftp:ssl-allow true
+set ssl:verify-certificate no
+mkdir -p "$remote_dir"
+put "$local_file" -o "$remote_file"
+bye
+EOF
           done < changed-public-files.txt
 
       - name: Delete removed app files
         if: ${{ inputs.delete_removed }}
         shell: bash
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
-          PORT="${{ secrets.FTP_PORT }}"
+          PORT="$FTP_PORT"
+
           if [ -z "$PORT" ]; then
             PORT="21"
           fi
@@ -252,21 +299,28 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            remote_file="${{ secrets.FTP_PATH }}/$file"
+            remote_file="$FTP_PATH/$file"
 
-            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          rm -f "$remote_file"
-          bye
-          EOF
+            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
+set ftp:ssl-allow true
+set ssl:verify-certificate no
+rm -f "$remote_file"
+bye
+EOF
           done < deleted-app-files.txt
 
       - name: Delete removed public files
         if: ${{ inputs.delete_removed && inputs.deploy_public }}
         shell: bash
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PATH_PUBLIC: ${{ secrets.FTP_PATH_PUBLIC }}
         run: |
-          PORT="${{ secrets.FTP_PORT }}"
+          PORT="$FTP_PORT"
+
           if [ -z "$PORT" ]; then
             PORT="21"
           fi
@@ -279,12 +333,12 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            remote_file="${{ secrets.FTP_PATH_PUBLIC }}/$file"
+            remote_file="$FTP_PATH_PUBLIC/$file"
 
-            lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PASS }}" -p "$PORT" "${{ secrets.FTP_HOST }}" <<EOF
-          set ftp:ssl-allow true
-          set ssl:verify-certificate no
-          rm -f "$remote_file"
-          bye
-          EOF
+            lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
+set ftp:ssl-allow true
+set ssl:verify-certificate no
+rm -f "$remote_file"
+bye
+EOF
           done < deleted-public-files.txt
