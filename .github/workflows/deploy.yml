@@ -267,12 +267,12 @@ jobs:
             remote_dir="$(dirname "$remote_file")"
 
             lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-set ftp:ssl-allow true
-set ssl:verify-certificate no
-mkdir -p "$remote_dir"
-put "$local_file" -o "$remote_file"
-bye
-EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          mkdir -p "$remote_dir"
+          put "$local_file" -o "$remote_file"
+          bye
+          EOF
           done < changed-public-files.txt
 
       - name: Delete removed app files
@@ -302,11 +302,11 @@ EOF
             remote_file="$FTP_PATH/$file"
 
             lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-set ftp:ssl-allow true
-set ssl:verify-certificate no
-rm -f "$remote_file"
-bye
-EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          rm -f "$remote_file"
+          bye
+          EOF
           done < deleted-app-files.txt
 
       - name: Delete removed public files
@@ -336,9 +336,9 @@ EOF
             remote_file="$FTP_PATH_PUBLIC/$file"
 
             lftp -u "$FTP_USER","$FTP_PASS" -p "$PORT" "$FTP_HOST" <<EOF
-set ftp:ssl-allow true
-set ssl:verify-certificate no
-rm -f "$remote_file"
-bye
-EOF
+          set ftp:ssl-allow true
+          set ssl:verify-certificate no
+          rm -f "$remote_file"
+          bye
+          EOF
           done < deleted-public-files.txt
