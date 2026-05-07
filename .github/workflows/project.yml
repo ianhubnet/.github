@@ -27,6 +27,21 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      - name: 0️⃣ Validate tag release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::This workflow only supports tag releases. Current ref: $GITHUB_REF"
+            exit 1
+          fi
+
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+
+          if [[ ! "$TAG_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Only stable SemVer tags are handled by this workflow: $TAG_NAME"
+            exit 1
+          fi
+
       - name: 1️⃣ Checkout code
         uses: actions/checkout@v6
         with:
