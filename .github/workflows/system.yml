@@ -1,0 +1,242 @@
+name: Release System Package
+run-name: Release ${{ inputs.package }} ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+
+      copy_docs:
+        required: false
+        type: boolean
+        default: true
+
+    secrets:
+      IANHUB_AGENT_CLIENT_ID:
+        required: true
+      IANHUB_AGENT_PRIVATE_KEY:
+        required: true
+      FTP_HOST:
+        required: true
+      FTP_PORT:
+        required: false
+      FTP_USER:
+        required: true
+      FTP_PASS:
+        required: true
+      FTP_PATH:
+        required: true
+      RPC_URL:
+        required: true
+      RPC_KEY:
+        required: true
+      RPC_VER:
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: Package and Release
+    runs-on: ubuntu-latest
+
+    outputs:
+      repo: ${{ github.repository }}
+      zip: ${{ steps.vars.outputs.zip }}
+      version: ${{ steps.vars.outputs.tag }}
+      package: ${{ steps.vars.outputs.package }}
+      upload_zip: ${{ steps.vars.outputs.upload_zip }}
+
+    concurrency:
+      group: system-release-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Validate release
+        shell: bash
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::This workflow only supports tag releases. Current ref: $GITHUB_REF"
+            exit 1
+          fi
+
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+
+          if [[ ! "$TAG_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Only stable SemVer tags are handled by this workflow: $TAG_NAME"
+            exit 1
+          fi
+
+          if [[ "$PACKAGE" != "core" && "$PACKAGE" != "common" ]]; then
+            echo "::error::Invalid system package: $PACKAGE"
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create ianhub-agent token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.IANHUB_AGENT_CLIENT_ID }}
+          private-key: ${{ secrets.IANHUB_AGENT_PRIVATE_KEY }}
+          owner: ianhubnet
+
+      - name: Configure GitHub auth and identity
+        shell: bash
+        run: |
+          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          git config --global user.name "ianhub-agent[bot]"
+          git config --global user.email "ianhub-agent[bot]@users.noreply.github.com"
+
+      - name: Set up variables
+        id: vars
+        shell: bash
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          ZIP="${PACKAGE}-${TAG}.zip"
+          UPLOAD_ZIP="${PACKAGE}.zip"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+          echo "zip=$ZIP" >> $GITHUB_OUTPUT
+          echo "upload_zip=$UPLOAD_ZIP" >> $GITHUB_OUTPUT
+
+      - name: Prepare ZIP contents
+        shell: bash
+        env:
+          PACKAGE: ${{ steps.vars.outputs.package }}
+          COPY_DOCS: ${{ inputs.copy_docs }}
+        run: |
+          if [ ! -d "src" ]; then
+            echo "::error::src not found"
+            exit 1
+          fi
+
+          mkdir "$PACKAGE"
+          cp -r src/* "$PACKAGE/"
+
+          if [ "$COPY_DOCS" = "true" ]; then
+            for f in README.md LICENSE.md; do
+              if [ -f "$f" ]; then
+                cp "$f" "$PACKAGE/"
+              fi
+            done
+          fi
+
+      - name: Create ZIP archive
+        shell: bash
+        run: |
+          zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.package }}"
+
+      - name: Create GitHub Release and Upload ZIP
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          files: ${{ steps.vars.outputs.zip }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+  post-release:
+    name: Upload ZIP to FTP and Notify
+    needs: release
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: system-post-release-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Create ianhub-agent token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.IANHUB_AGENT_CLIENT_ID }}
+          private-key: ${{ secrets.IANHUB_AGENT_PRIVATE_KEY }}
+          owner: ianhubnet
+
+      - name: Download release ZIP
+        shell: bash
+        run: |
+          REPO="${{ needs.release.outputs.repo }}"
+          VERSION="${{ needs.release.outputs.version }}"
+          PACKAGE="${{ needs.release.outputs.package }}"
+          SOURCE_ZIP="${{ needs.release.outputs.zip }}"
+          TARGET_ZIP="${{ needs.release.outputs.upload_zip }}"
+          API_URL="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
+
+          echo "Fetching release info for $VERSION..."
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "$API_URL" > release.json
+
+          ZIP_URL=$(jq -r --arg ZIP "$SOURCE_ZIP" '.assets[] | select(.name == $ZIP) | .browser_download_url' release.json)
+
+          if [ -z "$ZIP_URL" ] || [ "$ZIP_URL" = "null" ]; then
+            echo "::error::No ZIP asset found: $SOURCE_ZIP"
+            exit 1
+          fi
+
+          curl -fsSL \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/octet-stream" \
+            -o "$TARGET_ZIP" \
+            "$ZIP_URL"
+
+      - name: Upload ZIP to FTP
+        uses: SamKirkland/FTP-Deploy-Action@4.4.0
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          port: ${{ secrets.FTP_PORT }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: ./
+          server-dir: ${{ secrets.FTP_PATH }}
+          state-name: ".sync-${{ needs.release.outputs.package }}-state.json"
+          exclude: |
+            **/*
+            !${{ needs.release.outputs.upload_zip }}
+
+      - name: Send JSON-RPC
+        shell: bash
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          RPC_KEY: ${{ secrets.RPC_KEY }}
+          RPC_VER: ${{ secrets.RPC_VER }}
+        run: |
+          REPO="${{ needs.release.outputs.repo }}"
+          VERSION="${{ needs.release.outputs.version }}"
+          PACKAGE="${{ needs.release.outputs.package }}"
+          REPO_URL="https://github.com/$REPO"
+          OWNER="${REPO%%/*}"
+          NAME="${REPO##*/}"
+          ID=$(openssl rand -hex 8)
+
+          curl -fsSL -X POST "$RPC_URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RPC_KEY" \
+            -d "{
+              \"jsonrpc\": \"$RPC_VER\",
+              \"method\": \"update\",
+              \"params\": {
+                \"type\": \"$PACKAGE\",
+                \"package\": \"$PACKAGE\",
+                \"repo\": \"$REPO_URL\",
+                \"owner\": \"$OWNER\",
+                \"name\": \"$NAME\",
+                \"version\": \"$VERSION\"
+              },
+              \"id\": \"$ID\"
+            }"
