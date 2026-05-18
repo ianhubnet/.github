@@ -231,7 +231,7 @@ jobs:
               \"jsonrpc\": \"$RPC_VER\",
               \"method\": \"update\",
               \"params\": {
-                \"type\": \"$PACKAGE\",
+                \"type\": \"system\",
                 \"package\": \"$PACKAGE\",
                 \"repo\": \"$REPO_URL\",
                 \"owner\": \"$OWNER\",
