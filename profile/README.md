@@ -1,95 +1,125 @@
 <div align="center">
 	<img src="https://raw.githubusercontent.com/ianhubnet/.github/refs/heads/main/main/assets/logo.png" width="100" alt="Ianhub Logo" />
-	<h1>Ianhub™</h1>
-	<p><em>Building smarter PHP ecosystems for modern web applications.</em></p>
+	<h1>Ianhub</h1>
+	<p><em>Building practical, modular software for the modern web.</em></p>
 	<a href="https://www.ianhub.net/" target="_blank">🌐 Website</a> •
-	<a href="https://github.com/orgs/ianhubnet/repositories" target="_blank">💻 Projects</a>
+	<a href="https://github.com/orgs/ianhubnet/repositories" target="_blank">💻 Repositories</a>
 </div>
 
 ### 👋 Welcome to Ianhub
 
-**Ianhub** is a private software company founded by [Kader Bouyakoub (bkader)](https://github.com/bkader), dedicated to crafting high-performance, developer-centric web solutions in PHP.
+**Ianhub** is an independent software business operated by **Kader Bouyakoub (bkader)**, focused on building practical, modular, and developer-oriented software.
 
-We specialize in creating **lightweight, modular, and secure application frameworks** designed for developers who value **speed, structure, and flexibility**.
+The Ianhub ecosystem is primarily built around **PHP and web applications**, with a focus on simplicity, performance, maintainability, and giving developers control over their applications and infrastructure.
+
+Ianhub is also home to various applications, libraries, tools, themes, plugins, and other projects developed under the Ianhub brand.
 
 ### 🚀 CiSkeleton (CSK)
 
-**CiSkeleton (CSK)** is Ianhub’s flagship framework — a private, modular application foundation built on [CodeIgniter 3](https://github.com/bcit-ci/codeigniter). It serves as the core engine powering several internal and commercial projects.
+**[CiSkeleton (CSK)](https://github.com/ciskeleton/core)** is the main application framework developed and maintained by Ianhub.
 
-🧩 **Core Highlights**
-- Modular architecture with built-in admin interface.
-- Theme and marketplace integration.
-- Advanced authentication system (with optional 2FA).
-- Minimalist database design built for scalability.
-- Optimized for performance and maintainability.
+Built on **[CodeIgniter 3](https://github.com/bcit-ci/codeigniter)**, CSK has evolved from a private framework used to build Ianhub and client applications into a broader modular ecosystem for building PHP web applications.
 
-> CSK is not open source. Access is restricted to Ianhub’s internal projects and selected partners.
+Its architecture provides a foundation for:
 
-### 🔬 Our Ecosystem
+* Modular applications and extensions.
+* Themes and layouts.
+* User authentication and access levels.
+* Multilingual applications.
+* Administration interfaces.
+* JSON-RPC and API functionality.
+* Entities and reusable application components.
+* Storage and caching.
+* Media management.
+* Package installation and management.
 
-We maintain a family of repositories and internal tools that extend the CSK core:
+CSK is currently **private and in the process of becoming source-available**.
+
+The transition is being done gradually. Historically, Ianhub handled CSK updates, package information, licensing, and distribution through its own website and server infrastructure. This system is currently being redesigned so that **GitHub becomes the primary source for CSK code, packages, releases, and distribution**.
+
+Once that transition is complete, CSK and more of its ecosystem will be published as source-available software.
+
+### 🌱 From Private to Public
+
+For many years, CSK was developed as a private framework for Ianhub projects and selected client work.
+
+We are now gradually opening the ecosystem to the public.
+
+This does not mean that everything becomes public at once. Existing components and projects are being reviewed, reorganized, documented, and migrated individually.
+
+The goal is to establish a proper public ecosystem around CSK while retaining a clear distinction between:
+
+* **CiSkeleton** — the framework and its public ecosystem.
+* **Ianhub** — the software brand and organization developing and maintaining it.
+* **Ianhub applications and services** — products and projects built using CSK.
+
+### 🔧 The CiSkeleton Ecosystem
+
+The official CSK repositories are maintained under the [`ciskeleton`](https://github.com/ciskeleton) organization.
 
 **Core**
-- [**csk-core**](https://github.com/ianhubnet/csk-core) — Core application framework.
-- [**csk-common**](https://github.com/ianhubnet/csk-common) — Shared assets (StyleSheets, JavaScripts, Images, and Fonts).
-- [**csk-packages**](https://github.com/ianhubnet/csk-packages) — A monorepo containing all official CSK packages, including modules, plugins, themes, languages, helpers, libraries, and services.
-- [**csk-projects**](https://github.com/ianhubnet/csk-projects) — A monorepo containing all official CSK projects and applications.
 
-**Themes**
-- [**csk-theme-classic**](https://github.com/ianhubnet/csk-theme-classic) — A multipurpose CSK theme built with Bootstrap 5.
+* [**core**](https://github.com/ciskeleton/core) — The core CiSkeleton framework.
+* [**common**](https://github.com/ciskeleton/common) — Shared assets and common application resources.
+* [**packages**](https://github.com/ciskeleton/packages) — Official CSK packages, including modules, plugins, themes, and languages.
+* [**projects**](https://github.com/ciskeleton/projects) — Official CSK applications and projects.
 
-**Modules**
-- [**csk-module-blog**](https://github.com/ianhubnet/csk-module-blog) — Adds a lightweight Content Management System to CSK applications.
-- [**csk-module-contact**](https://github.com/ianhubnet/csk-module-contact) — Display a contact form and let visitors send you messages.
-- [**csk-module-events**](https://github.com/ianhubnet/csk-module-events) — Adds an events management system to CSK applications.
-- [**csk-module-faq**](https://github.com/ianhubnet/csk-module-faq) — A module that adds a simple yet effective FAQ system.
-- [**csk-module-forum**](https://github.com/ianhubnet/csk-module-forum) — Allows CSK applications to start their own community forums.
-- [**csk-module-gallery**](https://github.com/ianhubnet/csk-module-gallery) — Create and manage photo albums to showcase your images.
-- [**csk-module-market**](https://github.com/ianhubnet/csk-module-market) — A single-shop module that turns your CSK application into a read-to-use e-commerce website.
-- [**csk-module-marketplace**](https://github.com/ianhubnet/csk-module-marketplace) — A multi-vendor module that turns your CSK application into a read-to-use marketplace that hosts multiple vendors and shops.
-- [**csk-module-pages**](https://github.com/ianhubnet/csk-module-pages) — Helps you create and manage static pages for your site.
-- [**csk-module-portfolio**](https://github.com/ianhubnet/csk-module-portfolio) — What is better than a portfolio module to showcase your work?
-- [**csk-module-projects**](https://github.com/ianhubnet/csk-module-projects) — Manage company or client projects, tasks, and progress.
-- [**csk-module-services**](https://github.com/ianhubnet/csk-module-services) — Adds services system to your CSK applications.
-- [**csk-module-testimonials**](https://github.com/ianhubnet/csk-module-testimonials) — Adds testimonials system to your CSK applications.
-- [**csk-module-tickets**](https://github.com/ianhubnet/csk-module-tickets) — Adds a support and tickets system to your CSK applications to offer your clients the support they deserve.
+**Packages**
 
-**Plugins**
-- [**csk-plugin-exception-notifier**](https://github.com/ianhubnet/csk-plugin-exception-notifier) — Automatically emails administrators detailed reports when uncaught PHP exceptions occur. Includes de-duplication and throttling to prevent alert spam.
-- [**csk-plugin-jwt**](https://github.com/ianhubnet/csk-plugin-jwt) — Provides secure token-based authentication for APIs and user sessions using the JWT standard.
-- [**csk-plugin-oauth**](https://github.com/ianhubnet/csk-plugin-oauth) — Enables third-party authentication using OAuth providers such as Google, Facebook, GitHub, Discord, and LinkedIn.
-- [**csk-plugin-oembed**](https://github.com/ianhubnet/csk-plugin-oembed) — Fetch and embed media content from external providers like YouTube, Vimeo, Dailymotion, SoundCloud, Flickr, Twitter, Tiktok, and Reddit using oEmbed protocol.
-- [**csk-plugin-request-guard**](https://github.com/ianhubnet/csk-plugin-request-guard) — Lightweight per-request limiter that prevents excessive bootstrapping or malicious request flooding during the <code>pre_controller</code> phase.
-- [**csk-plugin-visitors**](https://github.com/ianhubnet/csk-plugin-visitors) — Displays a live count of online visitors on the dashboard sidebar.
+The CSK ecosystem includes packages such as:
 
-Most of these are proprietary but serve as the backbone of upcoming **Ianhub** products and services.
+* Modules — extend applications with additional functionality.
+* Plugins — provide reusable services and integrations.
+* Themes — provide application presentation and layouts.
+* Languages — provide translations for CSK and its ecosystem.
 
-### 💡 Our Vision
+Additional package types may be introduced as the ecosystem evolves.
 
-We believe the web should be **faster, cleaner, and developer-first**.
+### 🧩 Selected Projects
 
-At Ianhub, every line of code follows three guiding principles:
-- **Clarity** — Code should be readable and logical.
-- **Consistency** — Structure breeds scalability.
-- **Control** — Developers deserve full ownership of their stack.
+Ianhub also maintains projects that are not part of the CSK core ecosystem, including applications, tools, libraries, and World of Warcraft addons.
 
-### 🧠 About Kader Bouyakoub (bkader)
+Some projects may remain private when they contain client-specific work, unreleased products, or other material that is not intended for public distribution.
 
-Medic turned developer, [Kader Bouyakoub](https://github.com/bkader) is the creator of **CiSkeleton** and several other frameworks, themes, modules, plugins, and libraries under the **Ianhub** brand. With over twenty (**20**) years of coding experience, he did not let a single programming language go untasted and untested. He is also the creator of some **World of Warcraft** addons and the contributor to several others, either enhancing or back-porting them.
+### 💡 Our Principles
+
+Ianhub software is built around a few simple principles:
+
+* **Clarity** — Code should be readable and understandable.
+* **Consistency** — A predictable structure makes software easier to maintain.
+* **Performance** — Applications should remain lightweight and efficient.
+* **Control** — Developers should have control over their applications and infrastructure.
+* **Practicality** — Technology should solve real problems rather than add unnecessary complexity.
+
+### 🧠 About Kader Bouyakoub
+
+**Kader Bouyakoub (bkader)** is the founder and developer behind Ianhub and the creator of **CiSkeleton**.
+
+With more than **20 years of programming experience**, his work spans PHP web development, application frameworks, libraries, tools, themes, plugins, and World of Warcraft addons.
+
+He originally trained in medicine before moving into software development and eventually establishing Ianhub as his independent software business.
 
 > "I am specialized in anything as long as I can learn it."
 
-His work combines medical precision with developer passion — prioritizing structure, simplicity, and technical elegance.
+### 🧭 What's Next
 
-### 🧭 What’s Next
+Ianhub is currently focused on expanding and reorganizing the CSK ecosystem.
 
-**Ianhub** is currently expanding CSK’s ecosystem with:
-- **DinaPress CMS** — WordPress-style content management built for CSK.
-- **Marketplace Integration** — Secure distribution for themes and modules.
-- **Automation Tools** — Streamlined deployment and release management.
+The current priorities include:
 
-### 📣 Stay in the Loop
+* Completing the migration of CSK repositories to the `ciskeleton` organization.
+* Moving package distribution and releases to GitHub.
+* Reworking the CSK update system to use GitHub releases instead of the Ianhub website/server as the primary distribution mechanism.
+* Publishing more CSK components as they are prepared.
+* Improving documentation and developer tooling.
+* Continuing development of applications and services built on CSK.
 
-While most of our work is private, we occasionally share insights, code snippets, and news here on GitHub.
+The long-term goal is a **public, maintainable, and self-contained CSK ecosystem**, while Ianhub continues to develop products and services around it.
 
-⭐ Follow [@Ianhubnet](https://github.com/ianhubnet) or [@bkader](https://github.com/bkader) for updates.
+### 📣 Stay Connected
+
+Follow the organizations and repositories for development updates, releases, and new projects.
+
+* **Ianhub:** [github.com/ianhubnet](https://github.com/ianhubnet)
+* **CiSkeleton:** [github.com/ciskeleton](https://github.com/ciskeleton)
+* **Website:** [ianhub.dz](https://www.ianhub.dz/)
