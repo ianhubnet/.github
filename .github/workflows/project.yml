@@ -79,18 +79,18 @@ jobs:
             exit 1
           fi
 
-          mkdir "${{ steps.vars.outputs.name }}"
-          cp -r src/* "${{ steps.vars.outputs.name }}/"
+          mkdir "app"
+          cp -r src/* "app/"
 
           for f in README.md LICENSE.md; do
             if [ -f "$f" ]; then
-              cp "$f" "${{ steps.vars.outputs.name }}/"
+              cp "$f" "app/"
             fi
           done
 
       - name: 6️⃣ Create ZIP archive
         run: |
-          zip -r "${{ steps.vars.outputs.zip }}" "${{ steps.vars.outputs.name }}"
+          zip -r "${{ steps.vars.outputs.zip }}" "app"
 
       - name: 7️⃣ Create GitHub Release and Upload ZIP
         uses: softprops/action-gh-release@v3
