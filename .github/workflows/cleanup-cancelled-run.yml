@@ -1,0 +1,36 @@
+name: Cleanup Cancelled Workflow Run
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: "Workflow run ID to delete"
+        required: true
+        type: string
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    name: Delete cancelled workflow run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete cancelled workflow run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+
+          echo "Deleting cancelled workflow run: ${OWNER}/${REPO}#${RUN_ID}"
+
+          gh api \
+            --method DELETE \
+            "repos/${OWNER}/${REPO}/actions/runs/${RUN_ID}"
+
+          echo "Deleted cancelled workflow run: ${RUN_ID}"
