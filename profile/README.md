@@ -62,7 +62,7 @@ The official CSK repositories are maintained under the [`ciskeleton`](https://gi
 * [**core**](https://github.com/ciskeleton/core) — The core CiSkeleton framework.
 * [**common**](https://github.com/ciskeleton/common) — Shared assets and common application resources.
 * [**packages**](https://github.com/ciskeleton/packages) — Official CSK packages, including modules, plugins, themes, and languages.
-* [**projects**](https://github.com/ciskeleton/projects) — Official CSK applications and projects.
+* [**apps**](https://github.com/ciskeleton/apps) — Official CSK applications.
 
 **Packages**
 
